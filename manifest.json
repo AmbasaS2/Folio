@@ -1,0 +1,19 @@
+{
+  "display_name": "Folio",
+  "loading_order": 60,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Anonymous",
+  "version": "1.3.5",
+  "name": "Folio",
+  "auto_update": false,
+  "minimum_client_version": "1.18.0",
+  "hooks": {
+    "activate": "onActivate",
+    "enable": "onEnable",
+    "disable": "onDisable"
+  }
+}

@@ -1,0 +1,1270 @@
+#character-folio-root {
+    --folio-radius-large: 12px;
+    --folio-radius-medium: 7px;
+    --folio-radius-small: 5px;
+    --folio-gap: clamp(12px, 2vw, 20px);
+    --folio-card-min-width: 14.5rem;
+    --folio-mobile-card-min-width: 142px;
+    --folio-content-font-size: 100%;
+    --folio-pin-scale: 1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    height: auto;
+    flex: 0 0 auto;
+    align-self: stretch;
+    margin: 4px 0 24px;
+    padding: clamp(15px, 2.4vw, 24px);
+    overflow: visible;
+    color: var(--SmartThemeBodyColor);
+    font-family: inherit;
+}
+
+#character-folio-root[data-corner-style="sharp"] {
+    --folio-radius-large: 4px;
+    --folio-radius-medium: 3px;
+    --folio-radius-small: 2px;
+}
+
+#character-folio-root,
+#character-folio-root *,
+#character-folio-root *::before,
+#character-folio-root *::after,
+.folio-overlay,
+.folio-overlay *,
+.folio-overlay *::before,
+.folio-overlay *::after,
+.folio-menu,
+.folio-menu *,
+.folio-menu *::before,
+.folio-menu *::after,
+.folio-settings,
+.folio-settings *,
+.folio-settings *::before,
+.folio-settings *::after,
+.folio-shortcuts-host,
+.folio-shortcuts-host *,
+.folio-shortcuts-host *::before,
+.folio-shortcuts-host *::after {
+    box-sizing: border-box;
+}
+
+#character-folio-root button,
+#character-folio-root input,
+#character-folio-root select,
+#character-folio-root textarea,
+.folio-overlay button,
+.folio-overlay input,
+.folio-overlay select,
+.folio-overlay textarea,
+.folio-menu button,
+.folio-settings button,
+.folio-settings input,
+.folio-settings select,
+.folio-settings textarea {
+    color: inherit;
+    font-family: inherit;
+}
+
+#character-folio-root button,
+.folio-overlay button,
+.folio-menu button {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.folio-shell {
+    min-height: 0;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 52%, transparent);
+    border-radius: var(--folio-radius-large);
+    background-color: var(--SmartThemeBotMesBlurTintColor, var(--SmartThemeBlurTintColor));
+    box-shadow: 0 12px 36px color-mix(in srgb, var(--SmartThemeBorderColor) 18%, transparent);
+}
+
+.folio-shortcuts-host {
+    display: flex;
+    width: 100%;
+    padding: 0 10px 10px;
+    justify-content: center;
+    color: var(--SmartThemeBodyColor);
+    font-family: inherit;
+}
+
+.folio-shortcuts-host .welcomeShortcuts {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.folio-shortcuts-host .welcomeShortcutsSeparator {
+    margin: 0 2px;
+    color: var(--SmartThemeBorderColor);
+    font-size: 1.1em;
+}
+
+.folio-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: clamp(15px, 2vw, 22px);
+}
+
+.folio-heading {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.folio-sort-control,
+.folio-drawer-sort-control {
+    margin: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+}
+
+.folio-sort-control {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 34px;
+    padding: 2px 7px 2px 0;
+    align-items: center;
+    gap: 9px;
+    border-radius: var(--folio-radius-small);
+    text-align: left;
+}
+
+.folio-title {
+    margin: 0;
+    color: var(--SmartThemeBodyColor);
+    font-size: clamp(1.28em, 2.5vw, 1.62em);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+}
+
+.folio-chevron {
+    display: inline-block;
+    width: 0.48em;
+    height: 0.48em;
+    flex: 0 0 auto;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    color: var(--SmartThemeQuoteColor);
+    transform: rotate(45deg) translateY(-0.14em);
+    transform-origin: center;
+}
+
+.folio-sort-control:hover .folio-title,
+.folio-sort-control:hover .folio-chevron,
+.folio-sort-control:focus-visible .folio-title,
+.folio-sort-control:focus-visible .folio-chevron {
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-sort-control:focus-visible,
+.folio-drawer-sort-control:focus-visible {
+    outline: 2px solid var(--SmartThemeEmColor);
+    outline-offset: 3px;
+}
+
+.folio-filter-controls {
+    display: grid;
+    width: 100%;
+    max-width: 12rem;
+    flex: 0 1 12rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    align-items: stretch;
+    margin-left: auto;
+    min-width: 0;
+}
+
+#character-folio-root .folio-filter-controls,
+#character-folio-root .folio-grid,
+#character-folio-root > .folio-pager {
+    font-size: var(--folio-content-font-size, 100%);
+}
+
+.folio-search-wrap {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+}
+
+.folio-search {
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 62%, transparent);
+    border-radius: var(--folio-radius-medium);
+    outline: 0;
+    background: var(--SmartThemeChatTintColor);
+    background: color-mix(in srgb, var(--SmartThemeChatTintColor) 72%, transparent);
+    color: var(--SmartThemeBodyColor);
+    caret-color: var(--SmartThemeEmColor);
+    font-size: 0.9em;
+    line-height: 1.25;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.folio-search::placeholder {
+    color: var(--SmartThemeQuoteColor);
+    opacity: 0.78;
+}
+
+.folio-search:hover,
+.folio-tag-filter:hover {
+    border-color: color-mix(in srgb, var(--SmartThemeEmColor) 46%, var(--SmartThemeBorderColor));
+}
+
+.folio-search:focus,
+.folio-tag-filter:focus-visible {
+    border-color: var(--SmartThemeEmColor);
+    outline: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--SmartThemeEmColor) 18%, transparent);
+}
+
+.folio-tag-filter {
+    display: flex;
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 6px 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 62%, transparent);
+    border-radius: var(--folio-radius-medium);
+    background: var(--SmartThemeChatTintColor);
+    background: color-mix(in srgb, var(--SmartThemeChatTintColor) 72%, transparent);
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.86em;
+    text-align: left;
+    cursor: pointer;
+}
+
+.folio-tag-filter-label {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--folio-card-min-width)), 1fr));
+    gap: clamp(17px, 2.4vw, 25px) var(--folio-gap);
+    align-items: start;
+    justify-content: stretch;
+}
+
+.folio-card {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 58%, transparent);
+    border-radius: var(--folio-radius-medium);
+    background-color: var(--SmartThemeBotMesBlurTintColor, var(--SmartThemeBlurTintColor));
+    background-color: color-mix(
+        in srgb,
+        var(--SmartThemeBotMesBlurTintColor) 78%,
+        var(--SmartThemeUserMesBlurTintColor) 22%
+    );
+    box-shadow: 0 7px 21px color-mix(in srgb, var(--SmartThemeBorderColor) 15%, transparent);
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.folio-card-open {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    text-align: inherit;
+    cursor: pointer;
+    -webkit-touch-callout: none;
+}
+
+.folio-portrait-wrap {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: var(--SmartThemeChatTintColor);
+    box-shadow: none;
+    transition: box-shadow 160ms ease;
+}
+
+#character-folio-root[data-portrait-ratio="square"] .folio-portrait-wrap {
+    aspect-ratio: 1 / 1;
+}
+
+.folio-portrait {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    background: var(--SmartThemeChatTintColor);
+    opacity: 0;
+    transition: opacity 160ms ease, transform 220ms ease;
+}
+
+.folio-portrait.is-loaded {
+    opacity: 1;
+}
+
+.folio-portrait-placeholder {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--SmartThemeQuoteColor);
+    font-size: clamp(1.8em, 5vw, 3em);
+    font-weight: 650;
+}
+
+.folio-portrait-placeholder[hidden] {
+    display: none;
+}
+
+.folio-pin-badge {
+    position: absolute;
+    z-index: 2;
+    top: 6px;
+    right: 6px;
+    display: grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 58%, transparent);
+    border-radius: var(--folio-radius-small);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 90%, transparent);
+    color: var(--SmartThemeEmColor);
+    font-size: 10px;
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--SmartThemeBorderColor) 22%, transparent);
+    transform: scale(var(--folio-pin-scale, 1));
+    transform-origin: top right;
+    pointer-events: none;
+}
+
+.folio-card:hover {
+    border-color: color-mix(in srgb, var(--SmartThemeEmColor) 52%, var(--SmartThemeBorderColor));
+    box-shadow: 0 10px 26px color-mix(in srgb, var(--SmartThemeBorderColor) 24%, transparent);
+    transform: translateY(-2px);
+}
+
+.folio-card-open:hover .folio-portrait {
+    transform: scale(1.018);
+}
+
+.folio-card-open:focus-visible .folio-portrait-wrap {
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--SmartThemeEmColor) 42%, transparent);
+}
+
+.folio-card-body {
+    position: relative;
+    min-height: 5.15em;
+    margin-top: 0;
+    padding: 8px 9px 7px;
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 46%, transparent);
+    border-radius: 0;
+    background-color: transparent;
+}
+
+.folio-character-name {
+    display: block;
+    overflow: hidden;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.94em;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
+    cursor: pointer;
+}
+
+.folio-character-name:hover {
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-character-name:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--SmartThemeEmColor) 35%, transparent);
+}
+
+.folio-card-tags {
+    display: flex;
+    min-width: 0;
+    margin: 4px 0 0;
+    padding: 0;
+    flex-wrap: wrap;
+    gap: 3px 4px;
+    list-style: none;
+}
+
+.folio-card-tag {
+    display: inline-block;
+    overflow: hidden;
+    max-width: 100%;
+    padding: 1px 6px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 48%, transparent);
+    border-radius: var(--folio-radius-small);
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 9%, transparent);
+    color: var(--SmartThemeQuoteColor);
+    font-size: 0.68em;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folio-memo-edit {
+    display: block;
+    width: 100%;
+    min-height: 3em;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeQuoteColor);
+    text-align: left;
+    writing-mode: horizontal-tb;
+    cursor: pointer;
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.folio-memo {
+    display: -webkit-box;
+    overflow: hidden;
+    min-height: 3em;
+    margin: 4px 0 0;
+    color: var(--SmartThemeQuoteColor);
+    font-size: 0.78em;
+    line-height: 1.38;
+    text-align: left;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+    writing-mode: horizontal-tb;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.folio-memo-placeholder {
+    opacity: 0.64;
+    font-style: normal;
+}
+
+.folio-memo:not(.folio-memo-placeholder) {
+    font-style: italic;
+}
+
+.folio-memo-edit:hover,
+.folio-memo-edit:focus-visible {
+    outline: 0;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, transparent);
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-memo-edit:hover .folio-memo,
+.folio-memo-edit:focus-visible .folio-memo {
+    color: inherit;
+}
+
+.folio-pager {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+}
+
+.folio-pager[hidden] {
+    display: none !important;
+}
+
+.folio-character-pager {
+    margin-top: 22px;
+}
+
+.folio-page-button {
+    display: grid;
+    width: 34px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font-size: 1.15em;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.folio-page-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 10%, transparent);
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-page-button:focus-visible:not(:disabled) {
+    outline: 2px solid var(--SmartThemeEmColor);
+    outline-offset: 1px;
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 10%, transparent);
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-page-button:disabled {
+    opacity: 0.34;
+    cursor: default;
+}
+
+.folio-page-status {
+    min-width: 4.4em;
+    color: var(--SmartThemeQuoteColor);
+    font-size: 0.8em;
+    text-align: center;
+}
+
+.folio-button {
+    min-height: 38px;
+    margin: 0;
+    padding: 7px 15px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 64%, transparent);
+    border-radius: var(--folio-radius-small);
+    background: var(--SmartThemeChatTintColor);
+    background: color-mix(in srgb, var(--SmartThemeChatTintColor) 76%, transparent);
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.folio-button:hover {
+    border-color: color-mix(in srgb, var(--SmartThemeEmColor) 54%, var(--SmartThemeBorderColor));
+    background: color-mix(in srgb, var(--SmartThemeChatTintColor) 92%, transparent);
+}
+
+.folio-button:active {
+    transform: translateY(1px);
+}
+
+.folio-button:focus-visible {
+    outline: 2px solid var(--SmartThemeEmColor);
+    outline-offset: 2px;
+}
+
+.folio-button.primary {
+    border-color: color-mix(in srgb, var(--SmartThemeEmColor) 72%, var(--SmartThemeBorderColor));
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 20%, var(--SmartThemeChatTintColor));
+}
+
+.folio-overlay[hidden] {
+    display: none !important;
+}
+
+.folio-overlay {
+    --folio-radius-large: 12px;
+    --folio-radius-medium: 7px;
+    --folio-radius-small: 5px;
+    position: fixed;
+    z-index: 100000;
+    inset: 0;
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-end;
+    overflow: hidden;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font-family: inherit;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    overscroll-behavior: contain;
+    transition: opacity 170ms ease, visibility 170ms ease;
+}
+
+.folio-overlay[data-corner-style="sharp"],
+.folio-menu[data-corner-style="sharp"],
+.folio-settings[data-corner-style="sharp"] {
+    --folio-radius-large: 4px;
+    --folio-radius-medium: 3px;
+    --folio-radius-small: 2px;
+}
+
+.folio-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.folio-drawer {
+    display: flex;
+    width: min(27rem, 92vw);
+    min-width: 0;
+    height: 100%;
+    max-height: 100dvh;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 68%, transparent);
+    background: var(--SmartThemeBlurTintColor);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 96%, var(--SmartThemeChatTintColor));
+    box-shadow: -16px 0 42px color-mix(in srgb, var(--SmartThemeBorderColor) 23%, transparent);
+    transform: translateX(102%);
+    transition: transform 210ms cubic-bezier(0.2, 0.78, 0.25, 1);
+}
+
+.folio-overlay.is-open .folio-drawer {
+    transform: translateX(0);
+}
+
+.folio-drawer-header {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+    min-height: 72px;
+    padding: calc(11px + env(safe-area-inset-top, 0px)) 12px 11px;
+    border-bottom: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 55%, transparent);
+    background: var(--SmartThemeBlurTintColor);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 96%, transparent);
+}
+
+.folio-close {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    margin: 0;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
+.folio-close:hover,
+.folio-close:focus-visible {
+    outline: 0;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 9%, transparent);
+}
+
+.folio-drawer-character {
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    gap: 10px;
+    align-items: center;
+}
+
+.folio-drawer-avatar {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    object-fit: cover;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 60%, transparent);
+    border-radius: var(--folio-radius-medium);
+    background: var(--SmartThemeChatTintColor);
+}
+
+.folio-drawer-avatar-placeholder {
+    display: grid;
+    place-items: center;
+    color: var(--SmartThemeQuoteColor);
+    font-size: 1em;
+    font-weight: 650;
+}
+
+.folio-drawer-avatar-placeholder[hidden] {
+    display: none;
+}
+
+.folio-drawer-title {
+    min-width: 0;
+    overflow: hidden;
+    margin: 0;
+    color: var(--SmartThemeBodyColor);
+    font-size: 1em;
+    font-weight: 700;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folio-drawer-sort-control {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+    padding: 4px 3px;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--folio-radius-small);
+    text-align: left;
+}
+
+.folio-drawer-sort-control .folio-drawer-title {
+    flex: 0 1 auto;
+}
+
+.folio-drawer-sort-control:hover .folio-drawer-title,
+.folio-drawer-sort-control:hover .folio-chevron,
+.folio-drawer-sort-control:focus-visible .folio-drawer-title,
+.folio-drawer-sort-control:focus-visible .folio-chevron {
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-drawer-body {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    scrollbar-color: color-mix(in srgb, var(--SmartThemeQuoteColor) 48%, transparent) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+.folio-chat-content {
+    min-height: 0;
+    flex: 0 0 auto;
+}
+
+.folio-chat-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.folio-chat-item {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    align-items: stretch;
+    border-bottom: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 48%, transparent);
+}
+
+.folio-chat-row {
+    display: flex;
+    min-width: 0;
+    min-height: 50px;
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 12px 9px;
+    align-items: center;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 130ms ease, color 130ms ease;
+}
+
+.folio-chat-row:hover,
+.folio-chat-row:focus-visible {
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 9%, transparent);
+}
+
+.folio-chat-row:focus-visible {
+    box-shadow: inset 3px 0 0 var(--SmartThemeEmColor);
+}
+
+.folio-chat-row:disabled,
+.folio-chat-row[aria-busy="true"] {
+    opacity: 0.58;
+    cursor: progress;
+}
+
+.folio-chat-title {
+    display: -webkit-box;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    min-width: 0;
+    color: inherit;
+    font-size: 0.9em;
+    line-height: 1.4;
+    text-align: left;
+    overflow-wrap: anywhere;
+    writing-mode: horizontal-tb;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.folio-chat-delete {
+    display: grid;
+    width: 36px;
+    min-width: 36px;
+    margin: 5px 0;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeQuoteColor);
+    font-size: 1em;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.folio-chat-item:hover .folio-chat-delete,
+.folio-chat-item:focus-within .folio-chat-delete,
+.folio-chat-delete:focus-visible {
+    opacity: 1;
+}
+
+.folio-chat-delete:hover,
+.folio-chat-delete:focus-visible {
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 12%, transparent);
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-chat-footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0 2px;
+}
+
+.folio-start-chat {
+    min-width: 9.5rem;
+}
+
+.folio-state,
+.folio-chat-error {
+    display: grid;
+    min-height: 11rem;
+    margin: 0;
+    padding: 24px 16px;
+    place-items: center;
+    align-content: center;
+    gap: 10px;
+    color: var(--SmartThemeQuoteColor);
+    text-align: center;
+}
+
+.folio-grid > .folio-state {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
+.folio-state-message {
+    max-width: 28rem;
+    margin: 0;
+    font-size: 0.82em;
+    line-height: 1.5;
+}
+
+.folio-spinner {
+    width: 27px;
+    height: 27px;
+    border: 2px solid color-mix(in srgb, var(--SmartThemeBorderColor) 56%, transparent);
+    border-top-color: var(--SmartThemeEmColor);
+    border-radius: 50%;
+    animation: folio-spin 680ms linear infinite;
+}
+
+@keyframes folio-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.folio-memo-editor {
+    display: grid;
+    gap: 11px;
+}
+
+.folio-memo-input {
+    width: 100%;
+    min-height: 76px;
+    max-height: 150px;
+    margin: 0;
+    padding: 10px 11px;
+    resize: vertical;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: var(--folio-radius-small);
+    outline: 0;
+    background: var(--SmartThemeChatTintColor);
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.9em;
+    line-height: 1.45;
+}
+
+.folio-memo-input:focus {
+    border-color: var(--SmartThemeEmColor);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--SmartThemeEmColor) 18%, transparent);
+}
+
+.folio-memo-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.folio-memo-actions .folio-button {
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: 0.875em;
+}
+
+.folio-menu {
+    --folio-radius-large: 12px;
+    --folio-radius-medium: 7px;
+    --folio-radius-small: 5px;
+    position: fixed;
+    z-index: 100005;
+    display: grid;
+    width: max-content;
+    min-width: 11rem;
+    max-width: min(18rem, calc(100vw - 24px));
+    max-height: min(22rem, calc(100dvh - 24px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 68%, transparent);
+    border-radius: var(--folio-radius-medium);
+    background: var(--SmartThemeBlurTintColor);
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 97%, var(--SmartThemeChatTintColor));
+    color: var(--SmartThemeBodyColor);
+    font-family: inherit;
+    box-shadow: 0 12px 36px color-mix(in srgb, var(--SmartThemeBorderColor) 30%, transparent);
+}
+
+.folio-menu-item {
+    position: relative;
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 8px 30px 8px 10px;
+    border: 0;
+    border-radius: var(--folio-radius-small);
+    outline: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.86em;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+}
+
+.folio-menu-item:hover,
+.folio-menu-item:focus-visible {
+    background: color-mix(in srgb, var(--SmartThemeEmColor) 11%, transparent);
+    color: var(--SmartThemeEmColor);
+}
+
+.folio-menu-item.is-selected::after {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    color: var(--SmartThemeEmColor);
+    content: "✓";
+    transform: translateY(-50%);
+}
+
+.folio-menu-compact {
+    min-width: 0;
+    padding: 3px;
+}
+
+.folio-menu-compact .folio-menu-item {
+    width: auto;
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 27px 6px 9px;
+    font-size: 0.82em;
+    white-space: nowrap;
+}
+
+.folio-menu-compact .folio-menu-item.is-selected::after {
+    right: 8px;
+}
+
+.folio-settings {
+    --folio-radius-large: 12px;
+    --folio-radius-medium: 7px;
+    --folio-radius-small: 5px;
+    color: var(--SmartThemeBodyColor);
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.folio-settings .inline-drawer-header,
+.folio-settings .inline-drawer-content,
+.folio-settings b,
+.folio-settings span,
+.folio-settings label,
+.folio-settings select,
+.folio-settings option {
+    font-family: inherit;
+}
+
+.folio-settings-grid {
+    display: grid;
+    gap: 9px;
+    padding-block: 4px 8px;
+}
+
+.folio-setting-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    align-items: stretch;
+    color: var(--SmartThemeBodyColor);
+    font-size: 0.9em;
+}
+
+.folio-setting-label {
+    display: block;
+    min-width: 0;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.folio-setting-row select {
+    width: 100%;
+    min-height: 32px;
+    margin: 0;
+    padding-block: 4px;
+    font-size: 0.95em;
+}
+
+.folio-range-title {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.folio-setting-value {
+    flex: 0 0 auto;
+    color: var(--SmartThemeQuoteColor);
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.folio-setting-slider {
+    width: 100%;
+    min-width: 0;
+    margin: 7px 0 5px;
+}
+
+@media (max-width: 38rem) {
+    #character-folio-root {
+        margin-top: 3px;
+        margin-bottom: 22px;
+        padding: 14px 12px 17px;
+    }
+
+    .folio-header {
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .folio-filter-controls {
+        width: 100%;
+        max-width: 10.25rem;
+        flex-basis: 10.25rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .folio-search,
+    .folio-tag-filter {
+        min-height: 32px;
+        padding: 4px 7px;
+        font-size: 0.76em;
+    }
+
+    .folio-tag-filter {
+        gap: 5px;
+    }
+
+    .folio-grid {
+        grid-template-columns: repeat(
+            auto-fill,
+            minmax(
+                min(100%, var(--folio-mobile-card-min-width)),
+                1fr
+            )
+        );
+        justify-content: stretch;
+        gap: 18px clamp(6px, 2.4vw, 10px);
+    }
+
+    .folio-card-body {
+        min-height: 4.95em;
+        margin-top: 0;
+        padding: 7px 8px 6px;
+    }
+
+    .folio-character-name {
+        font-size: 0.88em;
+    }
+
+    .folio-card-tags {
+        margin-top: 3px;
+        gap: 2px 3px;
+    }
+
+    .folio-card-tag {
+        padding-inline: 5px;
+        font-size: 0.64em;
+    }
+
+    .folio-memo {
+        font-size: 0.74em;
+    }
+
+    .folio-memo-edit,
+    .folio-memo {
+        min-height: 2.85em;
+    }
+
+    .folio-overlay {
+        align-items: flex-end;
+        background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 12%, transparent);
+    }
+
+    .folio-drawer {
+        width: 100%;
+        height: auto;
+        max-height: min(88dvh, 46rem);
+        border-top: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 68%, transparent);
+        border-left: 0;
+        border-radius: var(--folio-radius-large) var(--folio-radius-large) 0 0;
+        box-shadow: 0 -16px 42px color-mix(in srgb, var(--SmartThemeBorderColor) 23%, transparent);
+        transform: translateY(102%);
+    }
+
+    .folio-overlay.is-open .folio-drawer {
+        transform: translateY(0);
+    }
+
+    .folio-drawer::before {
+        width: 34px;
+        height: 4px;
+        margin: 7px auto -2px;
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--SmartThemeQuoteColor) 44%, transparent);
+        content: "";
+    }
+
+    .folio-drawer-header {
+        min-height: 66px;
+        padding-top: 7px;
+    }
+
+    .folio-drawer-avatar {
+        width: 43px;
+        height: 43px;
+        flex-basis: 43px;
+    }
+
+    .folio-chat-row {
+        min-height: 52px;
+        padding-block: 13px;
+    }
+
+    .folio-memo-actions .folio-button {
+        min-height: 36px;
+    }
+
+}
+
+@media screen and (max-width: 1000px) {
+    .folio-shortcuts-host .welcomeShortcuts a span {
+        display: none;
+    }
+}
+
+@media (max-width: 25rem) {
+    .folio-header {
+        gap: 8px;
+    }
+
+    .folio-filter-controls {
+        width: 100%;
+        max-width: 9.75rem;
+        flex-basis: 9.75rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+    }
+}
+
+@media (hover: none), (pointer: coarse) {
+    .folio-card:hover,
+    .folio-card-open:hover .folio-portrait {
+        transform: none;
+    }
+
+    .folio-chat-delete {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #character-folio-root *,
+    #character-folio-root *::before,
+    #character-folio-root *::after,
+    .folio-overlay *,
+    .folio-overlay *::before,
+    .folio-overlay *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
