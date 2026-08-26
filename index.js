@@ -8,7 +8,7 @@ import {
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.5
+ * Folio v1.3.6
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -2162,4 +2162,10 @@ export function onEnable() {
 export function onDisable() {
     lifecycleEnabled = false;
     cleanup();
+}
+
+export function onClean() {
+    const ctx = safeContext();
+    if (!ctx?.extensionSettings) return;
+    delete ctx.extensionSettings[MODULE_NAME];
 }
