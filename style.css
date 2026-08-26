@@ -260,7 +260,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--folio-card-min-width)), 1fr));
     gap: clamp(17px, 2.4vw, 25px) var(--folio-gap);
-    align-items: start;
+    align-items: stretch;
     justify-content: stretch;
 }
 
@@ -474,6 +474,10 @@
     writing-mode: horizontal-tb;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+}
+
+.folio-card[data-has-tags="false"] .folio-memo {
+    -webkit-line-clamp: 4;
 }
 
 .folio-memo-placeholder {

@@ -9,7 +9,7 @@ import {
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.9
+ * Folio v1.3.11
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -840,6 +840,7 @@ function buildCard(characterRecord, contextValue, notes, availableTags) {
     const card = createElement('article', 'folio-card');
     card.dataset.avatar = avatar;
     card.dataset.pinned = pinned ? 'true' : 'false';
+    card.dataset.hasTags = characterTags.length ? 'true' : 'false';
     card.setAttribute('role', 'listitem');
 
     const portraitButton = createElement('button', 'folio-card-open');
