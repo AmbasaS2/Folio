@@ -9,7 +9,7 @@ import {
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.8
+ * Folio v1.3.9
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -50,6 +50,7 @@ const CHARACTER_PAGE_SIZES = Object.freeze([3, 4, 6, 8, 9, 12, 15, 16]);
 const FONT_SCALES = Object.freeze([80, 90, 100, 110, 120, 130, 140, 150]);
 const CHAT_PAGE_SIZES = Object.freeze([5, 10, 15, 20]);
 const DEFAULT_SETTINGS = Object.freeze({
+    enabled: true,
     imageQuality: 'high',
     portraitScale: 100,
     portraitRatio: 'portrait',
@@ -59,6 +60,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     chatPageSize: 10,
 });
 const SETTING_OPTIONS = Object.freeze({
+    enabled: new Set([true, false]),
     imageQuality: new Set(['low', 'high']),
     portraitScale: new Set(PORTRAIT_SCALES),
     portraitRatio: new Set(['portrait', 'square']),
@@ -96,10 +98,13 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'bas
 
 let lifecycleEnabled = true;
 let initialized = false;
+let folioRuntimeActive = false;
+let runtimeRevision = 0;
 let chatObserver = null;
 let portraitObserver = null;
 let domReadyHandler = null;
-let eventBindings = [];
+let hostEventBindings = [];
+let runtimeEventBindings = [];
 let rootElement = null;
 let overlayElement = null;
 let drawerElement = null;
@@ -128,6 +133,7 @@ let renamingChat = false;
 let cleaningFolioData = false;
 let lifecycleRevision = 0;
 let pendingCharacterRefresh = false;
+let enabledSaveQueue = null;
 const sessionRecentByAvatar = new Map();
 
 function context() {
@@ -326,6 +332,7 @@ function normalizeSettingValue(key, rawValue) {
 function getFolioSettings(contextValue = safeContext()) {
     const stored = contextValue?.extensionSettings?.[MODULE_NAME];
     return {
+        enabled: normalizeSettingValue('enabled', stored?.enabled),
         imageQuality: normalizeSettingValue('imageQuality', stored?.imageQuality),
         portraitScale: normalizeSettingValue('portraitScale', stored?.portraitScale),
         portraitRatio: normalizeSettingValue('portraitRatio', stored?.portraitRatio),
@@ -334,6 +341,26 @@ function getFolioSettings(contextValue = safeContext()) {
         cornerStyle: normalizeSettingValue('cornerStyle', stored?.cornerStyle),
         chatPageSize: normalizeSettingValue('chatPageSize', stored?.chatPageSize),
     };
+}
+
+function isRuntimeCurrent(revision = runtimeRevision) {
+    return lifecycleEnabled && folioRuntimeActive && revision === runtimeRevision;
+}
+
+function saveEnabledPreferenceImmediately() {
+    const execute = async () => {
+        try {
+            await saveSettings();
+        } catch (error) {
+            console.error('[Folio] Failed to save the enabled preference:', error);
+        }
+    };
+    const queued = enabledSaveQueue ? enabledSaveQueue.then(execute, execute) : execute();
+    const tracked = queued.finally(() => {
+        if (enabledSaveQueue === tracked) enabledSaveQueue = null;
+    });
+    enabledSaveQueue = tracked;
+    return tracked;
 }
 
 function savePreference(key, rawValue) {
@@ -353,8 +380,12 @@ function savePreference(key, rawValue) {
         ensureModuleSettings(ctx)[key] = nextValue;
     }
 
-    ctx.saveSettingsDebounced?.();
     handlePreferenceChange(key);
+    if (key === 'enabled') {
+        void saveEnabledPreferenceImmediately();
+    } else {
+        ctx.saveSettingsDebounced?.();
+    }
     return true;
 }
 
@@ -408,11 +439,13 @@ function cleanEmptySettings(contextValue) {
     }
 }
 
-async function clearStoredFolioData(contextValue = context()) {
+async function clearStoredFolioData(contextValue = context(), shouldContinue = null) {
     const extensionSettings = contextValue?.extensionSettings;
     if (!extensionSettings || typeof extensionSettings !== 'object') return false;
-    if (!Object.hasOwn(extensionSettings, MODULE_NAME)) return false;
 
+    if (enabledSaveQueue) await enabledSaveQueue;
+    if (typeof shouldContinue === 'function' && !shouldContinue()) return null;
+    if (!Object.hasOwn(extensionSettings, MODULE_NAME)) return false;
     delete extensionSettings[MODULE_NAME];
     await saveSettings();
     return true;
@@ -571,14 +604,17 @@ function observePortrait(portrait) {
         return;
     }
     if (!portraitObserver) {
-        portraitObserver = new IntersectionObserver(entries => {
+        const observerRevision = runtimeRevision;
+        const observer = new IntersectionObserver(entries => {
+            if (!isRuntimeCurrent(observerRevision) || portraitObserver !== observer) return;
             for (const entry of entries) {
                 if (!entry.isIntersecting) continue;
                 const image = entry.target;
-                portraitObserver?.unobserve(image);
+                observer.unobserve(image);
                 loadPortrait(image);
             }
         }, { root: null, rootMargin: '280px 0px', threshold: 0.01 });
+        portraitObserver = observer;
     }
     portraitObserver.observe(portrait);
 }
@@ -622,7 +658,7 @@ function positionMenu(menu, anchor, point) {
 
 function openMenu({ anchor = null, point = null, label = '메뉴', items = [], closeOnSelect = true, compact = false } = {}) {
     closeMenu();
-    if (!lifecycleEnabled || !items.length) return;
+    if (!folioRuntimeActive || !items.length) return;
 
     const menu = createElement('div', compact ? 'folio-menu folio-menu-compact' : 'folio-menu');
     menu.setAttribute('role', 'menu');
@@ -741,6 +777,7 @@ function attachLongPress(element, callback) {
     };
     element.addEventListener('pointerdown', event => {
         if (event.pointerType === 'mouse' || event.button !== 0) return;
+        const pressRevision = runtimeRevision;
         clear();
         cancelReset();
         triggered = false;
@@ -748,7 +785,7 @@ function attachLongPress(element, callback) {
         startY = event.clientY;
         timer = window.setTimeout(() => {
             timer = null;
-            if (!lifecycleEnabled || !element.isConnected) return;
+            if (!isRuntimeCurrent(pressRevision) || !element.isConnected) return;
             triggered = true;
             callback({ x: startX, y: startY, sourceEvent: event });
         }, LONG_PRESS_DELAY);
@@ -1154,6 +1191,10 @@ function applyVisualSettings() {
 }
 
 function handlePreferenceChange(key) {
+    if (key === 'enabled') {
+        reconcileFolioRuntime();
+        return;
+    }
     applyVisualSettings();
     if (key === 'imageQuality') {
         renderCharacterGrid();
@@ -1170,6 +1211,11 @@ function handlePreferenceChange(key) {
 
 function syncSettingsControls(container, settings = getFolioSettings()) {
     if (!(container instanceof HTMLElement)) return;
+
+    const enabledControl = container.querySelector('#folio-enabled');
+    if (enabledControl instanceof HTMLInputElement && enabledControl.type === 'checkbox') {
+        enabledControl.checked = settings.enabled;
+    }
 
     for (const { id, key } of SELECT_SETTING_CONTROLS) {
         const control = container.querySelector(`#${id}`);
@@ -1215,8 +1261,21 @@ async function requestFolioDataCleanup(button, container = settingsElement) {
     if (cleaningFolioData || !lifecycleEnabled) return;
     const operationRevision = lifecycleRevision;
     cleaningFolioData = true;
+    const controlsToLock = [];
+    if (container instanceof HTMLElement) {
+        if (typeof container.querySelectorAll === 'function') {
+            controlsToLock.push(...container.querySelectorAll('input, select, button'));
+        } else {
+            const enabledControl = container.querySelector('#folio-enabled');
+            if (enabledControl) controlsToLock.push(enabledControl);
+        }
+    }
+    if (button && !controlsToLock.includes(button)) controlsToLock.push(button);
+    const previousDisabledStates = new Map(
+        controlsToLock.map(control => [control, Boolean(control.disabled)]),
+    );
+    for (const control of controlsToLock) control.disabled = true;
     if (button instanceof HTMLButtonElement) {
-        button.disabled = true;
         button.setAttribute('aria-busy', 'true');
     }
 
@@ -1224,7 +1283,12 @@ async function requestFolioDataCleanup(button, container = settingsElement) {
         const confirmed = await confirmFolioDataCleanup();
         if (!confirmed || !lifecycleEnabled || operationRevision !== lifecycleRevision || !container?.isConnected) return;
 
-        await clearStoredFolioData();
+        const cleared = await clearStoredFolioData(context(), () => (
+            lifecycleEnabled &&
+            operationRevision === lifecycleRevision &&
+            Boolean(container?.isConnected)
+        ));
+        if (cleared === null) return;
         if (!lifecycleEnabled || operationRevision !== lifecycleRevision || !container?.isConnected) return;
 
         currentSortMode = DEFAULT_SORT_MODE;
@@ -1235,6 +1299,7 @@ async function requestFolioDataCleanup(button, container = settingsElement) {
         closeMenu();
         closeDrawer({ restoreFocus: false });
         syncSettingsControls(container);
+        reconcileFolioRuntime();
         applyVisualSettings();
         if (rootElement?.isConnected) {
             const sortControl = rootElement.querySelector('.folio-sort-control');
@@ -1248,8 +1313,10 @@ async function requestFolioDataCleanup(button, container = settingsElement) {
     } finally {
         if (operationRevision === lifecycleRevision) {
             cleaningFolioData = false;
+            for (const [control, wasDisabled] of previousDisabledStates) {
+                if (control?.isConnected) control.disabled = wasDisabled;
+            }
             if (button instanceof HTMLButtonElement && button.isConnected) {
-                button.disabled = false;
                 button.removeAttribute('aria-busy');
             }
         }
@@ -1257,10 +1324,16 @@ async function requestFolioDataCleanup(button, container = settingsElement) {
 }
 
 function bindSettingsControls(container) {
-    if (container.dataset.folioBound === 'true') return;
-    container.dataset.folioBound = 'true';
     const settings = getFolioSettings();
     syncSettingsControls(container, settings);
+    if (container.dataset.folioBound === 'true') return;
+    container.dataset.folioBound = 'true';
+
+    const enabledControl = container.querySelector('#folio-enabled');
+    if (enabledControl instanceof HTMLInputElement && enabledControl.type === 'checkbox') {
+        enabledControl.addEventListener('change', () => savePreference('enabled', enabledControl.checked));
+    }
+
     for (const { id, key } of SELECT_SETTING_CONTROLS) {
         const control = container.querySelector(`#${id}`);
         if (!(control instanceof HTMLSelectElement)) continue;
@@ -1309,13 +1382,16 @@ async function mountSettings() {
     }
     if (settingsMountPromise) return settingsMountPromise;
 
-    settingsMountPromise = (async () => {
+    const mountRevision = lifecycleRevision;
+    const mountPromise = (async () => {
         try {
             const ctx = context();
             const host = document.getElementById('extensions_settings2');
             if (!host || typeof ctx.renderExtensionTemplateAsync !== 'function') return null;
             const html = await ctx.renderExtensionTemplateAsync(EXTENSION_PATH, 'settings');
-            if (!lifecycleEnabled || document.getElementById(SETTINGS_ID)) return document.getElementById(SETTINGS_ID);
+            if (!lifecycleEnabled || mountRevision !== lifecycleRevision || document.getElementById(SETTINGS_ID)) {
+                return document.getElementById(SETTINGS_ID);
+            }
             host.insertAdjacentHTML('beforeend', html);
             const mounted = document.getElementById(SETTINGS_ID);
             if (!(mounted instanceof HTMLElement)) return null;
@@ -1326,15 +1402,17 @@ async function mountSettings() {
         } catch (error) {
             console.error('[Folio] Failed to mount settings:', error);
             return null;
-        } finally {
-            settingsMountPromise = null;
         }
     })();
-    return settingsMountPromise;
+    settingsMountPromise = mountPromise;
+    void mountPromise.finally(() => {
+        if (settingsMountPromise === mountPromise) settingsMountPromise = null;
+    });
+    return mountPromise;
 }
 
 function mountFolio(welcomePanel) {
-    if (!lifecycleEnabled || !(welcomePanel instanceof HTMLElement)) return;
+    if (!folioRuntimeActive || !(welcomePanel instanceof HTMLElement)) return;
     const chatElement = welcomePanel.parentElement;
     if (!chatElement || chatElement.id !== 'chat') return;
 
@@ -1354,14 +1432,12 @@ function mountFolio(welcomePanel) {
         return;
     }
 
-    // A native welcome refresh can replace #chat without emitting CHAT_CHANGED.
-    // Retire any drawer request tied to the detached root before mounting anew.
+    // A native welcome refresh can replace the welcome panel without emitting
+    // CHAT_CHANGED. Retire any drawer request tied to the detached root first.
     activeListSequence += 1;
     activeListController?.abort();
     activeListController = null;
     activeDrawerAvatar = '';
-    openingChat = false;
-    renamingChat = false;
     activeChatState = null;
     closeMenu();
     disconnectPortraitObserver();
@@ -1388,12 +1464,13 @@ function mountCurrentWelcome() {
 }
 
 function ensureChatObserver() {
-    if (chatObserver || !lifecycleEnabled) return;
+    if (chatObserver || !folioRuntimeActive) return;
     const chatElement = document.getElementById('chat');
     if (!chatElement) return;
 
-    chatObserver = new MutationObserver(records => {
-        if (!lifecycleEnabled) return;
+    const observerRevision = runtimeRevision;
+    const observer = new MutationObserver(records => {
+        if (!isRuntimeCurrent(observerRevision) || chatObserver !== observer) return;
         for (const record of records) {
             for (const node of record.addedNodes) {
                 if (
@@ -1410,7 +1487,8 @@ function ensureChatObserver() {
         }
         keepWelcomeShortcutsLast(chatElement);
     });
-    chatObserver.observe(chatElement, { childList: true, subtree: false });
+    chatObserver = observer;
+    observer.observe(chatElement, { childList: true, subtree: false });
 }
 
 function getFocusableElements(container) {
@@ -1460,8 +1538,6 @@ function closeDrawer({ restoreFocus = true } = {}) {
     activeDrawerAvatar = '';
     activeChatState = null;
     currentChatPage = 1;
-    openingChat = false;
-    renamingChat = false;
     closeMenu();
 
     if (overlayElement) {
@@ -1675,6 +1751,7 @@ async function fetchCharacterChats(character, signal) {
 }
 
 async function refreshActiveChatList(character, { requireActive = true } = {}) {
+    const requestRuntimeRevision = runtimeRevision;
     const avatar = getAvatarKey(character);
     const state = activeChatState;
     if (requireActive && (!state || getAvatarKey(state.character) !== avatar || !state.body?.isConnected)) return null;
@@ -1687,7 +1764,7 @@ async function refreshActiveChatList(character, { requireActive = true } = {}) {
     try {
         const chats = await fetchCharacterChats(character, controller.signal);
         const shouldRender = (
-            lifecycleEnabled &&
+            isRuntimeCurrent(requestRuntimeRevision) &&
             !controller.signal.aborted &&
             requestSequence === activeListSequence &&
             activeDrawerAvatar === avatar &&
@@ -1766,9 +1843,31 @@ async function showChatRenameNotice(message) {
     window.alert(message);
 }
 
-async function requestRenameChat(character, chat, trigger) {
-    if (renamingChat || deletingChat || openingChat || !lifecycleEnabled) return;
+function getChatOperationBody(avatar) {
+    const state = activeChatState;
+    return state && getAvatarKey(state.character) === avatar && state.body instanceof HTMLElement
+        ? state.body
+        : null;
+}
 
+function isChatOperationBodyCurrent(body, avatar, operationRevision) {
+    return (
+        isRuntimeCurrent(operationRevision) &&
+        body instanceof HTMLElement &&
+        body.isConnected &&
+        activeDrawerAvatar === avatar &&
+        activeChatState?.body === body &&
+        getAvatarKey(activeChatState?.character) === avatar
+    );
+}
+
+async function requestRenameChat(character, chat, trigger) {
+    if (renamingChat || deletingChat || openingChat || !folioRuntimeActive) return;
+
+    const operationRevision = runtimeRevision;
+    const avatar = getAvatarKey(character);
+    const operationBody = getChatOperationBody(avatar);
+    const operationChats = activeChatState?.body === operationBody ? activeChatState.chats : [];
     renamingChat = true;
     if (trigger instanceof HTMLButtonElement) {
         trigger.disabled = true;
@@ -1776,7 +1875,7 @@ async function requestRenameChat(character, chat, trigger) {
     }
     try {
         const requestedName = await promptChatRename(chat.title);
-        if (!lifecycleEnabled || requestedName === false || requestedName === null) return;
+        if (!isChatOperationBodyCurrent(operationBody, avatar, operationRevision) || requestedName === false || requestedName === null) return;
 
         const newName = normalizeChatRenameValue(requestedName);
         if (!newName) {
@@ -1785,7 +1884,7 @@ async function requestRenameChat(character, chat, trigger) {
         }
         if (collator.compare(newName, chat.fileId) === 0) return;
 
-        const duplicate = activeChatState?.chats?.some(item => (
+        const duplicate = operationChats.some(item => (
             item.fileId !== chat.fileId && collator.compare(item.fileId, newName) === 0
         ));
         if (duplicate) {
@@ -1794,16 +1893,17 @@ async function requestRenameChat(character, chat, trigger) {
         }
 
         const ctx = context();
-        const avatar = getAvatarKey(character);
         const characters = Array.isArray(ctx.characters) ? ctx.characters : [];
         const characterId = characters.findIndex(item => getAvatarKey(item) === avatar);
         if (characterId < 0) {
-            renderDrawerState(activeChatState?.body, 'error', '캐릭터를 찾을 수 없습니다.');
+            if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+                renderDrawerState(operationBody, 'error', '캐릭터를 찾을 수 없습니다.');
+            }
             return;
         }
 
         const previousChatIds = new Set(
-            (activeChatState?.chats || []).map(item => item.fileId),
+            operationChats.map(item => item.fileId),
         );
         const wasCharacterDefault = normalizeChatRenameValue(characters[characterId]?.chat) === chat.fileId;
 
@@ -1813,7 +1913,7 @@ async function requestRenameChat(character, chat, trigger) {
             newFileName: newName,
             loader: true,
         });
-        const refreshedChats = await refreshActiveChatList(character, { requireActive: false });
+        const refreshedChats = await fetchCharacterChats(character);
         const addedChats = Array.isArray(refreshedChats) && !refreshedChats.some(item => item.fileId === chat.fileId)
             ? refreshedChats.filter(item => !previousChatIds.has(item.fileId))
             : [];
@@ -1825,10 +1925,13 @@ async function requestRenameChat(character, chat, trigger) {
         ) {
             await updateRemoteChatName(String(characterId), renamedChat.fileId);
         }
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderChatRows(operationBody, character, refreshedChats);
+        }
     } catch (error) {
         console.error('[Folio] Failed to rename chat:', error);
-        if (activeChatState?.body?.isConnected) {
-            renderDrawerState(activeChatState.body, 'error', '대화 이름을 바꾸지 못했습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '대화 이름을 바꾸지 못했습니다.');
         }
     } finally {
         renamingChat = false;
@@ -1840,36 +1943,39 @@ async function requestRenameChat(character, chat, trigger) {
 }
 
 async function requestDeleteChat(character, chat, trigger) {
-    if (deletingChat || renamingChat || openingChat || !lifecycleEnabled) return;
-    const confirmed = await confirmChatDeletion(chat.title);
-    if (!confirmed || !lifecycleEnabled) return;
-
-    const ctx = context();
+    if (deletingChat || renamingChat || openingChat || !folioRuntimeActive) return;
+    const operationRevision = runtimeRevision;
     const avatar = getAvatarKey(character);
-    const characters = Array.isArray(ctx.characters) ? ctx.characters : [];
-    const characterId = characters.findIndex(item => getAvatarKey(item) === avatar);
-    if (characterId < 0) {
-        renderDrawerState(activeChatState?.body, 'error', '캐릭터를 찾을 수 없습니다.');
-        return;
-    }
-
+    const operationBody = getChatOperationBody(avatar);
     deletingChat = true;
     if (trigger instanceof HTMLButtonElement) {
         trigger.disabled = true;
         trigger.setAttribute('aria-busy', 'true');
     }
     try {
+        const confirmed = await confirmChatDeletion(chat.title);
+        if (!confirmed || !isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) return;
+
+        const ctx = context();
+        const characters = Array.isArray(ctx.characters) ? ctx.characters : [];
+        const characterId = characters.findIndex(item => getAvatarKey(item) === avatar);
+        if (characterId < 0) {
+            renderDrawerState(operationBody, 'error', '캐릭터를 찾을 수 없습니다.');
+            return;
+        }
+
         await deleteCharacterChatByName(String(characterId), chat.fileId);
+        if (!isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) return;
         const state = activeChatState;
-        if (state && getAvatarKey(state.character) === avatar && state.body?.isConnected) {
+        if (state?.body === operationBody) {
             const remaining = state.chats.filter(item => item.fileId !== chat.fileId);
-            renderChatRows(state.body, character, remaining);
+            renderChatRows(operationBody, character, remaining);
             await refreshActiveChatList(character);
         }
     } catch (error) {
         console.error('[Folio] Failed to delete chat:', error);
-        if (activeChatState?.body?.isConnected) {
-            renderDrawerState(activeChatState.body, 'error', '대화를 삭제하지 못했습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '대화를 삭제하지 못했습니다.');
         }
     } finally {
         deletingChat = false;
@@ -1881,7 +1987,8 @@ async function requestDeleteChat(character, chat, trigger) {
 }
 
 async function openCharacterDrawer(character) {
-    if (!lifecycleEnabled || !drawerElement || !overlayElement) return;
+    if (!folioRuntimeActive || !drawerElement || !overlayElement) return;
+    const operationRevision = runtimeRevision;
     const avatar = getAvatarKey(character);
     if (!avatar) return;
 
@@ -1916,7 +2023,7 @@ async function openCharacterDrawer(character) {
     try {
         const loadedChats = await fetchCharacterChats(character, controller.signal);
         if (
-            !lifecycleEnabled ||
+            !isRuntimeCurrent(operationRevision) ||
             controller.signal.aborted ||
             requestSequence !== activeListSequence ||
             activeDrawerAvatar !== avatar ||
@@ -1938,8 +2045,10 @@ function normalizeChatId(value) {
 }
 
 async function startNewCharacterChat(character, button) {
-    if (openingChat || !lifecycleEnabled) return;
+    if (openingChat || deletingChat || renamingChat || !folioRuntimeActive) return;
+    const operationRevision = runtimeRevision;
     const avatar = getAvatarKey(character);
+    const operationBody = getChatOperationBody(avatar);
     const hadSavedChats = activeChatState && getAvatarKey(activeChatState.character) === avatar
         ? activeChatState.chats.length > 0
         : true;
@@ -1947,7 +2056,9 @@ async function startNewCharacterChat(character, button) {
     const characters = Array.isArray(ctx.characters) ? ctx.characters : [];
     const characterId = characters.findIndex(item => getAvatarKey(item) === avatar);
     if (characterId < 0) {
-        renderDrawerState(drawerElement?.querySelector('.folio-drawer-body'), 'error', '캐릭터를 찾을 수 없습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '캐릭터를 찾을 수 없습니다.');
+        }
         return;
     }
 
@@ -1958,6 +2069,7 @@ async function startNewCharacterChat(character, button) {
     }
     try {
         await ctx.selectCharacterById(characterId, { switchMenu: false });
+        if (!isRuntimeCurrent(operationRevision)) return;
         const selectedContext = context();
         const selectedCharacters = Array.isArray(selectedContext.characters) ? selectedContext.characters : [];
         const selectedCharacter = selectedCharacters[Number(selectedContext.characterId)];
@@ -1972,13 +2084,15 @@ async function startNewCharacterChat(character, button) {
                 throw new Error('SillyTavern slash command API is unavailable.');
             }
             await selectedContext.executeSlashCommandsWithOptions('/newchat');
+            if (!isRuntimeCurrent(operationRevision)) return;
         }
         sessionRecentByAvatar.set(avatar, Date.now());
-        closeDrawer({ restoreFocus: false });
+        if (isRuntimeCurrent(operationRevision)) closeDrawer({ restoreFocus: false });
     } catch (error) {
         console.error('[Folio] Failed to start chat:', error);
-        const body = drawerElement?.querySelector('.folio-drawer-body');
-        if (body instanceof HTMLElement) renderDrawerState(body, 'error', '새 대화를 시작하지 못했습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '새 대화를 시작하지 못했습니다.');
+        }
     } finally {
         openingChat = false;
         if (button instanceof HTMLButtonElement && button.isConnected) {
@@ -1989,13 +2103,17 @@ async function startNewCharacterChat(character, button) {
 }
 
 async function openExistingChat(character, fileId, row) {
-    if (openingChat || !lifecycleEnabled) return;
+    if (openingChat || deletingChat || renamingChat || !folioRuntimeActive) return;
+    const operationRevision = runtimeRevision;
     const avatar = getAvatarKey(character);
+    const operationBody = getChatOperationBody(avatar);
     const ctx = context();
     const characters = Array.isArray(ctx.characters) ? ctx.characters : [];
     const characterId = characters.findIndex(item => getAvatarKey(item) === avatar);
     if (characterId < 0) {
-        renderDrawerState(drawerElement?.querySelector('.folio-drawer-body'), 'error', '캐릭터를 찾을 수 없습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '캐릭터를 찾을 수 없습니다.');
+        }
         return;
     }
 
@@ -2015,6 +2133,7 @@ async function openExistingChat(character, fileId, row) {
     }
     try {
         await ctx.selectCharacterById(characterId);
+        if (!isRuntimeCurrent(operationRevision)) return;
 
         // SillyTavern can decline a character switch while a chat is saving or
         // a group is generating, without returning a success value. Never pass
@@ -2030,13 +2149,15 @@ async function openExistingChat(character, fileId, row) {
         selectedContext.saveSettingsDebounced?.();
         if (normalizeChatId(selectedContext.getCurrentChatId?.()) !== normalizeChatId(fileId)) {
             await selectedContext.openCharacterChat(fileId);
+            if (!isRuntimeCurrent(operationRevision)) return;
         }
         sessionRecentByAvatar.set(avatar, Date.now());
-        closeDrawer({ restoreFocus: false });
+        if (isRuntimeCurrent(operationRevision)) closeDrawer({ restoreFocus: false });
     } catch (error) {
         console.error('[Folio] Failed to open chat:', error);
-        const body = drawerElement?.querySelector('.folio-drawer-body');
-        if (body instanceof HTMLElement) renderDrawerState(body, 'error', '대화를 열지 못했습니다.');
+        if (isChatOperationBodyCurrent(operationBody, avatar, operationRevision)) {
+            renderDrawerState(operationBody, 'error', '대화를 열지 못했습니다.');
+        }
     } finally {
         openingChat = false;
         if (row instanceof HTMLButtonElement && row.isConnected) {
@@ -2047,7 +2168,7 @@ async function openExistingChat(character, fileId, row) {
 }
 
 function openMemoEditor(character) {
-    if (!lifecycleEnabled || !drawerElement || !overlayElement) return;
+    if (!folioRuntimeActive || !drawerElement || !overlayElement) return;
     const avatar = getAvatarKey(character);
     if (!avatar) return;
 
@@ -2111,18 +2232,65 @@ function clearDetachedRootReferences() {
     drawerElement = null;
     activeDrawerAvatar = '';
     activeChatState = null;
-    openingChat = false;
+}
+
+function stopFolioRuntime() {
+    folioRuntimeActive = false;
+    runtimeRevision += 1;
+    activeListSequence += 1;
+    activeListController?.abort();
+    activeListController = null;
+    chatObserver?.disconnect();
+    chatObserver = null;
+    disconnectPortraitObserver();
+    closeMenu();
+    unbindRuntimeEvents();
+    restoreWelcomeShortcuts();
+
+    document.getElementById(ROOT_ID)?.remove();
+    overlayElement?.remove();
+    document.getElementById(OVERLAY_ID)?.remove();
+    rootElement = null;
+    overlayElement = null;
+    drawerElement = null;
+    activeDrawerAvatar = '';
+    activeChatState = null;
+    lastFocusedElement = null;
+    currentCharacterPage = 1;
+    currentChatPage = 1;
+    currentSearch = '';
+    currentTagIds.clear();
+    currentSortMode = DEFAULT_SORT_MODE;
+    currentChatSortMode = DEFAULT_CHAT_SORT_MODE;
+    pendingCharacterRefresh = false;
+    sessionRecentByAvatar.clear();
+}
+
+function startFolioRuntime() {
+    if (!lifecycleEnabled || !getFolioSettings().enabled) return;
+    if (!folioRuntimeActive) {
+        folioRuntimeActive = true;
+        runtimeRevision += 1;
+    }
+    bindRuntimeEvents();
+    ensureChatObserver();
+    mountCurrentWelcome();
+}
+
+function reconcileFolioRuntime() {
+    if (!lifecycleEnabled) return;
+    if (getFolioSettings().enabled) startFolioRuntime();
+    else stopFolioRuntime();
 }
 
 function handleAppReady() {
     if (!lifecycleEnabled) return;
-    ensureChatObserver();
-    mountCurrentWelcome();
     void mountSettings();
+    reconcileFolioRuntime();
 }
 
 function handleChatChanged() {
-    if (!lifecycleEnabled) return;
+    if (!folioRuntimeActive) return;
     recordCurrentCharacterAsRecent();
     clearDetachedRootReferences();
     mountCurrentWelcome();
@@ -2133,19 +2301,22 @@ function handleChatChanged() {
 }
 
 function handleExtensionSettingsLoaded() {
-    if (lifecycleEnabled) void mountSettings();
+    if (!lifecycleEnabled) return;
+    void mountSettings();
+    reconcileFolioRuntime();
 }
 
 function handleCharacterRenamed(oldAvatar, newAvatar) {
     if (!lifecycleEnabled) return;
     migrateNote(oldAvatar, newAvatar);
     migratePinnedAvatar(oldAvatar, newAvatar);
-    pendingCharacterRefresh = true;
-    if (activeDrawerAvatar === oldAvatar) closeDrawer({ restoreFocus: false });
     if (sessionRecentByAvatar.has(oldAvatar)) {
         sessionRecentByAvatar.set(newAvatar, sessionRecentByAvatar.get(oldAvatar));
         sessionRecentByAvatar.delete(oldAvatar);
     }
+    if (!folioRuntimeActive) return;
+    pendingCharacterRefresh = true;
+    if (activeDrawerAvatar === oldAvatar) closeDrawer({ restoreFocus: false });
 }
 
 function handleCharacterDeleted(payload) {
@@ -2153,32 +2324,39 @@ function handleCharacterDeleted(payload) {
     const avatar = getAvatarKey(payload?.character);
     deleteNoteForAvatar(avatar);
     deletePinnedAvatar(avatar);
+    sessionRecentByAvatar.delete(avatar);
+    if (!folioRuntimeActive) return;
     pendingCharacterRefresh = true;
     if (activeDrawerAvatar === avatar) closeDrawer({ restoreFocus: false });
-    sessionRecentByAvatar.delete(avatar);
 }
 
-function bindEvent(eventName, handler) {
+function bindEvent(eventName, handler, bindings) {
     const eventSource = safeContext()?.eventSource;
     if (!eventName || !eventSource?.on) return;
     eventSource.on(eventName, handler);
-    eventBindings.push({ eventName, handler });
+    bindings.push({ eventName, handler });
 }
 
-function bindEvents() {
-    if (eventBindings.length) return;
+function bindHostEvents() {
+    if (hostEventBindings.length) return;
     const ctx = safeContext();
     const types = ctx?.eventTypes || ctx?.event_types || {};
-    bindEvent(types.APP_READY, handleAppReady);
-    bindEvent(types.EXTENSION_SETTINGS_LOADED, handleExtensionSettingsLoaded);
-    bindEvent(types.CHAT_CHANGED, handleChatChanged);
-    bindEvent(types.CHARACTER_RENAMED, handleCharacterRenamed);
-    bindEvent(types.CHARACTER_DELETED, handleCharacterDeleted);
+    bindEvent(types.APP_READY, handleAppReady, hostEventBindings);
+    bindEvent(types.EXTENSION_SETTINGS_LOADED, handleExtensionSettingsLoaded, hostEventBindings);
+    bindEvent(types.CHARACTER_RENAMED, handleCharacterRenamed, hostEventBindings);
+    bindEvent(types.CHARACTER_DELETED, handleCharacterDeleted, hostEventBindings);
 }
 
-function unbindEvents() {
+function bindRuntimeEvents() {
+    if (runtimeEventBindings.length) return;
+    const ctx = safeContext();
+    const types = ctx?.eventTypes || ctx?.event_types || {};
+    bindEvent(types.CHAT_CHANGED, handleChatChanged, runtimeEventBindings);
+}
+
+function unbindEventGroup(bindings) {
     const eventSource = safeContext()?.eventSource;
-    for (const { eventName, handler } of eventBindings) {
+    for (const { eventName, handler } of bindings) {
         try {
             if (typeof eventSource?.off === 'function') eventSource.off(eventName, handler);
             else if (typeof eventSource?.removeListener === 'function') eventSource.removeListener(eventName, handler);
@@ -2186,24 +2364,30 @@ function unbindEvents() {
             // Best-effort cleanup during extension disable.
         }
     }
-    eventBindings = [];
+    bindings.length = 0;
+}
+
+function unbindHostEvents() {
+    unbindEventGroup(hostEventBindings);
+}
+
+function unbindRuntimeEvents() {
+    unbindEventGroup(runtimeEventBindings);
 }
 
 function initialize() {
     if (!lifecycleEnabled || initialized) return;
     initialized = true;
-    bindEvents();
-    ensureChatObserver();
-    mountCurrentWelcome();
+    bindHostEvents();
     void mountSettings();
+    reconcileFolioRuntime();
 
     if (!document.getElementById('chat') && document.readyState === 'loading' && !domReadyHandler) {
         domReadyHandler = () => {
             domReadyHandler = null;
             if (!lifecycleEnabled) return;
-            ensureChatObserver();
-            mountCurrentWelcome();
             void mountSettings();
+            reconcileFolioRuntime();
         };
         document.addEventListener('DOMContentLoaded', domReadyHandler, { once: true });
     }
@@ -2211,45 +2395,22 @@ function initialize() {
 
 function cleanup() {
     lifecycleRevision += 1;
-    activeListSequence += 1;
-    activeListController?.abort();
-    activeListController = null;
-    chatObserver?.disconnect();
-    chatObserver = null;
-    disconnectPortraitObserver();
-    closeMenu();
-    unbindEvents();
-    restoreWelcomeShortcuts();
+    stopFolioRuntime();
+    unbindHostEvents();
 
     if (domReadyHandler) {
         document.removeEventListener('DOMContentLoaded', domReadyHandler);
         domReadyHandler = null;
     }
 
-    document.getElementById(ROOT_ID)?.remove();
     settingsElement?.remove();
     document.getElementById(SETTINGS_ID)?.remove();
-    overlayElement?.remove();
-    document.getElementById(OVERLAY_ID)?.remove();
-    rootElement = null;
-    overlayElement = null;
-    drawerElement = null;
     settingsElement = null;
     settingsMountPromise = null;
     activeDrawerAvatar = '';
     activeChatState = null;
     lastFocusedElement = null;
-    openingChat = false;
-    deletingChat = false;
-    renamingChat = false;
     cleaningFolioData = false;
-    currentCharacterPage = 1;
-    currentChatPage = 1;
-    currentSearch = '';
-    currentTagIds.clear();
-    currentSortMode = DEFAULT_SORT_MODE;
-    currentChatSortMode = DEFAULT_CHAT_SORT_MODE;
-    pendingCharacterRefresh = false;
     sessionRecentByAvatar.clear();
     initialized = false;
 }
