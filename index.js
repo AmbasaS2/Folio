@@ -3,12 +3,13 @@ import {
     deleteCharacterChatByName,
     formatCharacterAvatar,
     renameGroupOrCharacterChat,
+    saveSettings,
     setActiveCharacter,
     updateRemoteChatName,
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.6
+ * Folio v1.3.8
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -66,6 +67,17 @@ const SETTING_OPTIONS = Object.freeze({
     cornerStyle: new Set(['sharp', 'round']),
     chatPageSize: new Set(CHAT_PAGE_SIZES),
 });
+const SELECT_SETTING_CONTROLS = Object.freeze([
+    { id: 'folio-image-quality', key: 'imageQuality' },
+    { id: 'folio-portrait-ratio', key: 'portraitRatio' },
+    { id: 'folio-corner-style', key: 'cornerStyle' },
+]);
+const RANGE_SETTING_CONTROLS = Object.freeze([
+    { id: 'folio-portrait-scale', key: 'portraitScale', values: PORTRAIT_SCALES, unit: '%', live: true },
+    { id: 'folio-character-page-size', key: 'characterPageSize', values: CHARACTER_PAGE_SIZES, unit: '명', indexed: true },
+    { id: 'folio-chat-page-size', key: 'chatPageSize', values: CHAT_PAGE_SIZES, unit: '개' },
+    { id: 'folio-font-scale', key: 'fontScale', values: FONT_SCALES, unit: '%', live: true },
+]);
 const DEFAULT_SORT_MODE = 'recent';
 const SORT_OPTIONS = Object.freeze([
     { value: 'recent', label: '최근 대화순' },
@@ -113,6 +125,8 @@ let lastFocusedElement = null;
 let openingChat = false;
 let deletingChat = false;
 let renamingChat = false;
+let cleaningFolioData = false;
+let lifecycleRevision = 0;
 let pendingCharacterRefresh = false;
 const sessionRecentByAvatar = new Map();
 
@@ -392,6 +406,16 @@ function cleanEmptySettings(contextValue) {
     if (Object.keys(moduleSettings).length === 0) {
         delete contextValue.extensionSettings[MODULE_NAME];
     }
+}
+
+async function clearStoredFolioData(contextValue = context()) {
+    const extensionSettings = contextValue?.extensionSettings;
+    if (!extensionSettings || typeof extensionSettings !== 'object') return false;
+    if (!Object.hasOwn(extensionSettings, MODULE_NAME)) return false;
+
+    delete extensionSettings[MODULE_NAME];
+    await saveSettings();
+    return true;
 }
 
 function saveNote(avatar, rawValue) {
@@ -1144,29 +1168,106 @@ function handlePreferenceChange(key) {
     }
 }
 
+function syncSettingsControls(container, settings = getFolioSettings()) {
+    if (!(container instanceof HTMLElement)) return;
+
+    for (const { id, key } of SELECT_SETTING_CONTROLS) {
+        const control = container.querySelector(`#${id}`);
+        if (control instanceof HTMLSelectElement) control.value = String(settings[key]);
+    }
+
+    for (const { id, key, values, unit, indexed = false } of RANGE_SETTING_CONTROLS) {
+        const control = container.querySelector(`#${id}`);
+        const output = container.querySelector(`#${id}-value`);
+        if (!(control instanceof HTMLInputElement) || !(output instanceof HTMLOutputElement)) continue;
+
+        const value = settings[key];
+        control.value = String(indexed ? values.indexOf(value) : value);
+        const label = `${value}${unit}`;
+        output.value = label;
+        control.setAttribute('aria-valuetext', label);
+    }
+}
+
+async function confirmFolioDataCleanup() {
+    const ctx = context();
+    const title = 'Folio 저장 데이터를 정리할까요?';
+    const message = '설정, 정렬, 고정, 메모가 삭제되고 기본값으로 돌아갑니다. 캐릭터와 채팅은 삭제되지 않습니다.';
+
+    if (typeof ctx.Popup === 'function' && ctx.POPUP_TYPE?.CONFIRM !== undefined) {
+        const content = createElement('div', 'folio-data-cleanup-confirm');
+        content.append(
+            createElement('h3', '', title),
+            createElement('p', '', message),
+        );
+        const popup = new ctx.Popup(content, ctx.POPUP_TYPE.CONFIRM, null);
+        const result = await popup.show();
+        return result === true || result === ctx.POPUP_RESULT?.AFFIRMATIVE;
+    }
+    if (ctx.Popup?.show?.confirm) {
+        const result = await ctx.Popup.show.confirm(title, message);
+        return result === true || result === ctx.POPUP_RESULT?.AFFIRMATIVE;
+    }
+    return window.confirm(`${title}\n${message}`);
+}
+
+async function requestFolioDataCleanup(button, container = settingsElement) {
+    if (cleaningFolioData || !lifecycleEnabled) return;
+    const operationRevision = lifecycleRevision;
+    cleaningFolioData = true;
+    if (button instanceof HTMLButtonElement) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+    }
+
+    try {
+        const confirmed = await confirmFolioDataCleanup();
+        if (!confirmed || !lifecycleEnabled || operationRevision !== lifecycleRevision || !container?.isConnected) return;
+
+        await clearStoredFolioData();
+        if (!lifecycleEnabled || operationRevision !== lifecycleRevision || !container?.isConnected) return;
+
+        currentSortMode = DEFAULT_SORT_MODE;
+        currentChatSortMode = DEFAULT_CHAT_SORT_MODE;
+        currentCharacterPage = 1;
+        currentChatPage = 1;
+        sessionRecentByAvatar.clear();
+        closeMenu();
+        closeDrawer({ restoreFocus: false });
+        syncSettingsControls(container);
+        applyVisualSettings();
+        if (rootElement?.isConnected) {
+            const sortControl = rootElement.querySelector('.folio-sort-control');
+            if (sortControl instanceof HTMLButtonElement) {
+                sortControl.title = SORT_OPTIONS.find(option => option.value === currentSortMode)?.label || '';
+            }
+            renderCharacterGrid();
+        }
+    } catch (error) {
+        console.error('[Folio] Failed to clear stored data:', error);
+    } finally {
+        if (operationRevision === lifecycleRevision) {
+            cleaningFolioData = false;
+            if (button instanceof HTMLButtonElement && button.isConnected) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+            }
+        }
+    }
+}
+
 function bindSettingsControls(container) {
     if (container.dataset.folioBound === 'true') return;
     container.dataset.folioBound = 'true';
     const settings = getFolioSettings();
-    const selectControls = [
-        ['folio-image-quality', 'imageQuality'],
-        ['folio-portrait-ratio', 'portraitRatio'],
-        ['folio-corner-style', 'cornerStyle'],
-    ];
-    for (const [id, key] of selectControls) {
+    syncSettingsControls(container, settings);
+    for (const { id, key } of SELECT_SETTING_CONTROLS) {
         const control = container.querySelector(`#${id}`);
         if (!(control instanceof HTMLSelectElement)) continue;
-        control.value = String(settings[key]);
         control.addEventListener('change', () => savePreference(key, control.value));
     }
 
-    const rangeControls = [
-        { id: 'folio-portrait-scale', key: 'portraitScale', values: PORTRAIT_SCALES, unit: '%', live: true },
-        { id: 'folio-character-page-size', key: 'characterPageSize', values: CHARACTER_PAGE_SIZES, unit: '명', indexed: true },
-        { id: 'folio-font-scale', key: 'fontScale', values: FONT_SCALES, unit: '%', live: true },
-        { id: 'folio-chat-page-size', key: 'chatPageSize', values: CHAT_PAGE_SIZES, unit: '개' },
-    ];
-    for (const definition of rangeControls) {
+    for (const definition of RANGE_SETTING_CONTROLS) {
         const { id, key, values, unit, indexed = false, live = false } = definition;
         const control = container.querySelector(`#${id}`);
         const output = container.querySelector(`#${id}-value`);
@@ -1184,14 +1285,16 @@ function bindSettingsControls(container) {
             return value;
         };
 
-        const storedValue = settings[key];
-        control.value = String(indexed ? values.indexOf(storedValue) : storedValue);
-        syncValue();
         control.addEventListener('input', () => {
             const value = syncValue();
             if (live) savePreference(key, value);
         });
         if (!live) control.addEventListener('change', () => savePreference(key, syncValue()));
+    }
+
+    const dataCleanupButton = container.querySelector('#folio-data-cleanup');
+    if (dataCleanupButton instanceof HTMLButtonElement) {
+        dataCleanupButton.addEventListener('click', () => void requestFolioDataCleanup(dataCleanupButton, container));
     }
 }
 
@@ -2107,6 +2210,7 @@ function initialize() {
 }
 
 function cleanup() {
+    lifecycleRevision += 1;
     activeListSequence += 1;
     activeListController?.abort();
     activeListController = null;
@@ -2138,6 +2242,7 @@ function cleanup() {
     openingChat = false;
     deletingChat = false;
     renamingChat = false;
+    cleaningFolioData = false;
     currentCharacterPage = 1;
     currentChatPage = 1;
     currentSearch = '';
@@ -2162,10 +2267,4 @@ export function onEnable() {
 export function onDisable() {
     lifecycleEnabled = false;
     cleanup();
-}
-
-export function onClean() {
-    const ctx = safeContext();
-    if (!ctx?.extensionSettings) return;
-    delete ctx.extensionSettings[MODULE_NAME];
 }

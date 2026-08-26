@@ -1100,6 +1100,22 @@
     margin: 7px 0 5px;
 }
 
+.folio-settings-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-block: 4px 8px;
+}
+
+.folio-data-cleanup-button {
+    display: inline-flex;
+    width: auto;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0;
+    white-space: nowrap;
+}
+
 @media (max-width: 38rem) {
     #character-folio-root {
         margin-top: 3px;
