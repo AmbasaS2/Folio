@@ -388,10 +388,18 @@
     background-color: transparent;
 }
 
-.folio-character-name {
+.folio-card-meta {
     display: block;
     overflow: hidden;
-    width: 100%;
+    max-height: 2.7em;
+    line-height: 1.35;
+}
+
+.folio-character-name {
+    display: inline-block;
+    overflow: hidden;
+    width: auto;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     border: 0;
@@ -406,7 +414,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     writing-mode: horizontal-tb;
+    vertical-align: middle;
     cursor: pointer;
+}
+
+.folio-card[data-has-tags="true"] .folio-character-name {
+    max-width: calc(100% - 4px);
+    margin-right: 4px;
 }
 
 .folio-character-name:hover {
@@ -419,19 +433,17 @@
 }
 
 .folio-card-tags {
-    display: flex;
-    min-width: 0;
-    margin: 4px 0 0;
+    display: inline;
+    margin: 0;
     padding: 0;
-    flex-wrap: wrap;
-    gap: 3px 4px;
     list-style: none;
 }
 
 .folio-card-tag {
     display: inline-block;
     overflow: hidden;
-    max-width: 100%;
+    max-width: calc(100% - 4px);
+    margin: 0 4px 0 0;
     padding: 1px 6px;
     border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 48%, transparent);
     border-radius: var(--folio-radius-small);
@@ -441,6 +453,16 @@
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
+    vertical-align: middle;
+}
+
+.folio-card-tag[hidden] {
+    display: none !important;
+}
+
+.folio-card-tag-overflow {
+    color: var(--SmartThemeEmColor);
+    font-weight: 700;
 }
 
 .folio-memo-edit {
@@ -1174,11 +1196,11 @@
     }
 
     .folio-card-tags {
-        margin-top: 3px;
-        gap: 2px 3px;
+        margin: 0;
     }
 
     .folio-card-tag {
+        margin-right: 3px;
         padding-inline: 5px;
         font-size: 0.64em;
     }

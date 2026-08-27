@@ -9,7 +9,7 @@ import {
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.11
+ * Folio v1.3.12
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -102,6 +102,12 @@ let folioRuntimeActive = false;
 let runtimeRevision = 0;
 let chatObserver = null;
 let portraitObserver = null;
+let tagLayoutObserver = null;
+let tagLayoutObservedGrid = null;
+let tagLayoutObservedWidth = null;
+let tagLayoutFrame = null;
+let tagLayoutResizeHandler = null;
+let tagLayoutFontReadyRoot = null;
 let domReadyHandler = null;
 let hostEventBindings = [];
 let runtimeEventBindings = [];
@@ -901,6 +907,7 @@ function buildCard(characterRecord, contextValue, notes, availableTags) {
     observePortrait(portrait);
 
     const body = createElement('div', 'folio-card-body');
+    const meta = createElement('div', 'folio-card-meta');
     const nameButton = createElement('button', 'folio-character-name', name);
     nameButton.type = 'button';
     nameButton.title = name;
@@ -916,6 +923,9 @@ function buildCard(characterRecord, contextValue, notes, availableTags) {
             badge.title = tag.name;
             tagList.appendChild(badge);
         }
+        const overflowBadge = createElement('li', 'folio-card-tag folio-card-tag-overflow');
+        overflowBadge.hidden = true;
+        tagList.appendChild(overflowBadge);
     }
 
     const memoButton = createElement('button', 'folio-memo-edit');
@@ -929,11 +939,167 @@ function buildCard(characterRecord, contextValue, notes, availableTags) {
     memoButton.appendChild(memoText);
     memoButton.addEventListener('click', () => openMemoEditor(character));
 
-    body.append(nameButton);
-    if (tagList) body.appendChild(tagList);
+    meta.appendChild(nameButton);
+    if (tagList) meta.appendChild(tagList);
+    body.appendChild(meta);
     body.appendChild(memoButton);
     card.append(portraitButton, body);
     return card;
+}
+
+function getTagFlowLineMap(meta) {
+    if (!(meta instanceof HTMLElement)) return new Map();
+    const elements = [
+        meta.querySelector('.folio-character-name'),
+        ...meta.querySelectorAll('.folio-card-tag:not([hidden])'),
+    ].filter(element => element instanceof HTMLElement);
+    const lineCenters = [];
+    const elementCenters = new Map();
+
+    for (const element of elements) {
+        const rect = element.getBoundingClientRect();
+        if (!(rect.width > 0) || !(rect.height > 0)) continue;
+        const center = rect.top + (rect.height / 2);
+        elementCenters.set(element, center);
+        if (!lineCenters.some(existing => Math.abs(existing - center) <= 2)) lineCenters.push(center);
+    }
+
+    lineCenters.sort((left, right) => left - right);
+    return new Map(Array.from(elementCenters, ([element, elementCenter]) => [
+        element,
+        lineCenters.findIndex(center => Math.abs(center - elementCenter) <= 2),
+    ]));
+}
+
+function getTagFlowLineIndex(meta, target) {
+    return getTagFlowLineMap(meta).get(target) ?? Number.POSITIVE_INFINITY;
+}
+
+function layoutCardTagOverflow(card) {
+    if (!(card instanceof HTMLElement)) return false;
+    const meta = card.querySelector('.folio-card-meta');
+    const tagList = card.querySelector('.folio-card-tags');
+    const overflowBadge = card.querySelector('.folio-card-tag-overflow');
+    if (!(meta instanceof HTMLElement) || !(tagList instanceof HTMLElement) || !(overflowBadge instanceof HTMLElement)) {
+        return false;
+    }
+    if (!(meta.getBoundingClientRect().width > 0)) return false;
+
+    const badges = Array.from(tagList.querySelectorAll('.folio-card-tag:not(.folio-card-tag-overflow)'))
+        .filter(badge => badge instanceof HTMLElement);
+    for (const badge of badges) badge.hidden = false;
+    overflowBadge.hidden = true;
+    overflowBadge.textContent = '';
+    overflowBadge.removeAttribute('title');
+    overflowBadge.removeAttribute('aria-label');
+
+    const initialLineMap = getTagFlowLineMap(meta);
+    let visibleCount = badges.findIndex(badge => (initialLineMap.get(badge) ?? Number.POSITIVE_INFINITY) >= 2);
+    if (visibleCount < 0) visibleCount = badges.length;
+    if (visibleCount === badges.length) {
+        card.dataset.hiddenTagCount = '0';
+        return true;
+    }
+
+    for (let index = visibleCount; index < badges.length; index += 1) badges[index].hidden = true;
+    overflowBadge.hidden = false;
+
+    while (true) {
+        const hiddenBadges = badges.slice(visibleCount);
+        const hiddenNames = hiddenBadges.map(badge => badge.textContent || '').filter(Boolean);
+        overflowBadge.textContent = `+${hiddenBadges.length}`;
+        overflowBadge.title = hiddenNames.join(', ');
+        overflowBadge.setAttribute('aria-label', `숨겨진 태그 ${hiddenBadges.length}개: ${hiddenNames.join(', ')}`);
+
+        if (getTagFlowLineIndex(meta, overflowBadge) < 2 || visibleCount === 0) break;
+        visibleCount -= 1;
+        badges[visibleCount].hidden = true;
+    }
+
+    card.dataset.hiddenTagCount = String(badges.length - visibleCount);
+    return true;
+}
+
+function runCardTagLayout(expectedRoot = rootElement) {
+    if (!expectedRoot?.isConnected || rootElement !== expectedRoot) return;
+    for (const card of expectedRoot.querySelectorAll('.folio-card[data-has-tags="true"]')) {
+        layoutCardTagOverflow(card);
+    }
+}
+
+function cancelScheduledCardTagLayout() {
+    if (tagLayoutFrame === null) return;
+    if (typeof globalThis.cancelAnimationFrame === 'function') globalThis.cancelAnimationFrame(tagLayoutFrame);
+    else globalThis.clearTimeout?.(tagLayoutFrame);
+    tagLayoutFrame = null;
+}
+
+function scheduleCardTagLayout(expectedRoot = rootElement) {
+    if (!(expectedRoot instanceof HTMLElement)) return;
+    cancelScheduledCardTagLayout();
+    const operationRevision = runtimeRevision;
+    const run = () => {
+        tagLayoutFrame = null;
+        if (!isRuntimeCurrent(operationRevision)) return;
+        runCardTagLayout(expectedRoot);
+    };
+    tagLayoutFrame = typeof globalThis.requestAnimationFrame === 'function'
+        ? globalThis.requestAnimationFrame(run)
+        : globalThis.setTimeout(run, 0);
+}
+
+function disconnectTagLayoutObserver() {
+    tagLayoutObserver?.disconnect();
+    tagLayoutObserver = null;
+    tagLayoutObservedGrid = null;
+    tagLayoutObservedWidth = null;
+    tagLayoutFontReadyRoot = null;
+    if (tagLayoutResizeHandler && typeof globalThis.removeEventListener === 'function') {
+        globalThis.removeEventListener('resize', tagLayoutResizeHandler);
+    }
+    tagLayoutResizeHandler = null;
+    cancelScheduledCardTagLayout();
+}
+
+function observeTagLayout(expectedRoot = rootElement) {
+    if (!(expectedRoot instanceof HTMLElement)) return;
+    const grid = expectedRoot.querySelector('.folio-grid');
+    if (!(grid instanceof HTMLElement)) return;
+    if (tagLayoutObservedGrid === grid) {
+        scheduleCardTagLayout(expectedRoot);
+        return;
+    }
+
+    disconnectTagLayoutObserver();
+    tagLayoutObservedGrid = grid;
+    const observerRevision = runtimeRevision;
+    if (typeof globalThis.ResizeObserver === 'function') {
+        const observer = new globalThis.ResizeObserver(entries => {
+            if (!isRuntimeCurrent(observerRevision) || tagLayoutObserver !== observer || rootElement !== expectedRoot) return;
+            const entry = entries.find(candidate => candidate.target === grid);
+            const width = Number(entry?.contentRect?.width);
+            if (!Number.isFinite(width) || Math.abs(width - (tagLayoutObservedWidth ?? -1)) < 0.5) return;
+            tagLayoutObservedWidth = width;
+            scheduleCardTagLayout(expectedRoot);
+        });
+        tagLayoutObserver = observer;
+        observer.observe(grid);
+    } else if (typeof globalThis.addEventListener === 'function') {
+        tagLayoutResizeHandler = () => scheduleCardTagLayout(expectedRoot);
+        globalThis.addEventListener('resize', tagLayoutResizeHandler, { passive: true });
+    }
+    const fontReady = globalThis.document?.fonts?.ready;
+    if (fontReady && typeof fontReady.then === 'function') {
+        tagLayoutFontReadyRoot = expectedRoot;
+        void fontReady.then(() => {
+            if (
+                tagLayoutFontReadyRoot === expectedRoot
+                && isRuntimeCurrent(observerRevision)
+                && rootElement === expectedRoot
+            ) scheduleCardTagLayout(expectedRoot);
+        });
+    }
+    scheduleCardTagLayout(expectedRoot);
 }
 
 function renderCharacterGrid(expectedRoot = rootElement) {
@@ -980,6 +1146,7 @@ function renderCharacterGrid(expectedRoot = rootElement) {
         renderCharacterGrid();
         rootElement?.scrollIntoView({ block: 'start', behavior: 'auto' });
     }, '캐릭터');
+    scheduleCardTagLayout(expectedRoot);
 }
 
 function updateVisibleNote(avatar, note) {
@@ -1189,6 +1356,7 @@ function applyVisualSettings() {
         if (element instanceof HTMLElement) element.style.fontSize = contentFontSize;
     }
     if (settingsElement instanceof HTMLElement) settingsElement.style.removeProperty('font-size');
+    scheduleCardTagLayout();
 }
 
 function handlePreferenceChange(key) {
@@ -1428,6 +1596,7 @@ function mountFolio(welcomePanel) {
         rootElement = existing;
         overlayElement = existingOverlay;
         drawerElement = existingOverlay.querySelector('.folio-drawer');
+        observeTagLayout(existing);
         if (!document.getElementById(SHORTCUTS_HOST_ID)) mountWelcomeShortcuts(welcomePanel, chatElement);
         keepWelcomeShortcutsLast(chatElement);
         return;
@@ -1442,6 +1611,7 @@ function mountFolio(welcomePanel) {
     activeChatState = null;
     closeMenu();
     disconnectPortraitObserver();
+    disconnectTagLayoutObserver();
     restoreWelcomeShortcuts();
     existing?.remove();
     overlayElement?.remove();
@@ -1454,6 +1624,7 @@ function mountFolio(welcomePanel) {
     currentTagIds.clear();
     const completedRoot = buildRoot();
     welcomePanel.insertAdjacentElement('afterend', completedRoot);
+    observeTagLayout(completedRoot);
     if (overlayElement) document.body.appendChild(overlayElement);
     mountWelcomeShortcuts(welcomePanel, chatElement);
     keepWelcomeShortcutsLast(chatElement);
@@ -2224,6 +2395,7 @@ function clearDetachedRootReferences() {
     activeListController?.abort();
     activeListController = null;
     disconnectPortraitObserver();
+    disconnectTagLayoutObserver();
     closeMenu();
     restoreWelcomeShortcuts();
     overlayElement?.remove();
@@ -2244,6 +2416,7 @@ function stopFolioRuntime() {
     chatObserver?.disconnect();
     chatObserver = null;
     disconnectPortraitObserver();
+    disconnectTagLayoutObserver();
     closeMenu();
     unbindRuntimeEvents();
     restoreWelcomeShortcuts();
