@@ -9,7 +9,7 @@ import {
 } from '../../../../script.js';
 
 /*
- * Folio v1.3.13
+ * Folio v1.3.14
  * A lightweight, character-first doorway to existing SillyTavern chats.
  *
  * Performance contract:
@@ -590,6 +590,27 @@ function findDirectWelcomePanel(chatElement = document.getElementById('chat')) {
     ) || null;
 }
 
+function scrollFolioToTopInsideChat(expectedRoot = rootElement) {
+    if (
+        !(expectedRoot instanceof HTMLElement)
+        || !expectedRoot.isConnected
+        || rootElement !== expectedRoot
+    ) return false;
+    const chatElement = expectedRoot.parentElement;
+    if (!(chatElement instanceof HTMLElement) || chatElement.id !== 'chat') return false;
+
+    const chatRect = chatElement.getBoundingClientRect();
+    const rootRect = expectedRoot.getBoundingClientRect();
+    const targetScrollTop = (Number(chatElement.scrollTop) || 0)
+        + rootRect.top
+        - chatRect.top
+        - (Number(chatElement.clientTop) || 0);
+    if (!Number.isFinite(targetScrollTop)) return false;
+
+    chatElement.scrollTop = Math.max(0, targetScrollTop);
+    return true;
+}
+
 function disconnectPortraitObserver() {
     portraitObserver?.disconnect();
     portraitObserver = null;
@@ -1142,9 +1163,10 @@ function renderCharacterGrid(expectedRoot = rootElement) {
         grid.appendChild(createElement('p', 'folio-state is-empty', message));
     }
     renderPager(pager, currentCharacterPage, totalPages, page => {
+        if (rootElement !== expectedRoot || !expectedRoot.isConnected) return;
         currentCharacterPage = page;
-        renderCharacterGrid();
-        rootElement?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        renderCharacterGrid(expectedRoot);
+        scrollFolioToTopInsideChat(expectedRoot);
     }, '캐릭터');
     scheduleCardTagLayout(expectedRoot);
 }
